@@ -50,7 +50,13 @@ class BaseDatabaseCreation(object):
             # Make the definition (e.g. 'foo VARCHAR(30)') for this field.
             field_output = [style.SQL_FIELD(qn(f.column)),
                 style.SQL_COLTYPE(col_type)]
-            if not f.null:
+            # Oracle treats the empty string ('') as null, so coerce the null
+            # option whenever '' is a possible value.
+            null = f.null
+            if (f.empty_strings_allowed and not f.primary_key and
+                    self.connection.features.interprets_empty_strings_as_nulls):
+                null = True
+            if not null:
                 field_output.append(style.SQL_KEYWORD('NOT NULL'))
             if f.primary_key:
                 field_output.append(style.SQL_KEYWORD('PRIMARY KEY'))
@@ -250,8 +256,8 @@ class BaseDatabaseCreation(object):
             test_db_repr = ''
             if verbosity >= 2:
                 test_db_repr = " ('%s')" % test_database_name
-            print "Creating test database for alias '%s'%s..." % (
-                self.connection.alias, test_db_repr)
+            print("Creating test database for alias '%s'%s..." % (
+                self.connection.alias, test_db_repr))
 
         self._create_test_db(verbosity, autoclobber)
 
@@ -323,7 +329,7 @@ class BaseDatabaseCreation(object):
         try:
             cursor.execute(
                 "CREATE DATABASE %s %s" % (qn(test_database_name), suffix))
-        except Exception, e:
+        except Exception as e:
             sys.stderr.write(
                 "Got an error creating the test database: %s\n" % e)
             if not autoclobber:
@@ -333,19 +339,19 @@ class BaseDatabaseCreation(object):
             if autoclobber or confirm == 'yes':
                 try:
                     if verbosity >= 1:
-                        print ("Destroying old test database '%s'..."
-                               % self.connection.alias)
+                        print("Destroying old test database '%s'..."
+                              % self.connection.alias)
                     cursor.execute(
                         "DROP DATABASE %s" % qn(test_database_name))
                     cursor.execute(
                         "CREATE DATABASE %s %s" % (qn(test_database_name),
                                                    suffix))
-                except Exception, e:
+                except Exception as e:
                     sys.stderr.write(
                         "Got an error recreating the test database: %s\n" % e)
                     sys.exit(2)
             else:
-                print "Tests cancelled."
+                print("Tests cancelled.")
                 sys.exit(1)
 
         return test_database_name
@@ -361,8 +367,8 @@ class BaseDatabaseCreation(object):
             test_db_repr = ''
             if verbosity >= 2:
                 test_db_repr = " ('%s')" % test_database_name
-            print "Destroying test database for alias '%s'%s..." % (
-                self.connection.alias, test_db_repr)
+            print("Destroying test database for alias '%s'%s..." % (
+                self.connection.alias, test_db_repr))
 
         # Temporarily use a new connection and a copy of the settings dict.
         # This prevents the production database from being exposed to potential

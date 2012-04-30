@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import datetime
+from operator import attrgetter
 import pickle
 import sys
 
@@ -18,7 +19,7 @@ from .models import (Annotation, Article, Author, Celebrity, Child, Cover,
     ManagedModel, Member, NamedCategory, Note, Number, Plaything, PointerA,
     Ranking, Related, Report, ReservedName, Tag, TvChef, Valid, X, Food, Eaten,
     Node, ObjectA, ObjectB, ObjectC, CategoryItem, SimpleCategory,
-    SpecialCategory, OneToOneCategory)
+    SpecialCategory, OneToOneCategory, NullableName)
 
 
 class BaseQuerysetTest(TestCase):
@@ -1894,3 +1895,60 @@ class DefaultValuesInsertTest(TestCase):
             DumbCategory.objects.create()
         except TypeError:
             self.fail("Creation of an instance of a model with only the PK field shouldn't error out after bulk insert refactoring (#17056)")
+
+class NullInExcludeTest(TestCase):
+    def setUp(self):
+        NullableName.objects.create(name='i1')
+        NullableName.objects.create()
+
+    def test_null_in_exclude_qs(self):
+        none_val = '' if connection.features.interprets_empty_strings_as_nulls else None
+        self.assertQuerysetEqual(
+            NullableName.objects.exclude(name__in=[]),
+            ['i1', none_val], attrgetter('name'))
+        self.assertQuerysetEqual(
+            NullableName.objects.exclude(name__in=['i1']),
+            [none_val], attrgetter('name'))
+        self.assertQuerysetEqual(
+            NullableName.objects.exclude(name__in=['i3']),
+            ['i1', none_val], attrgetter('name'))
+        inner_qs = NullableName.objects.filter(name='i1').values_list('name')
+        self.assertQuerysetEqual(
+            NullableName.objects.exclude(name__in=inner_qs),
+            [none_val], attrgetter('name'))
+        # Check that the inner queryset wasn't executed - it should be turned
+        # into subquery above
+        self.assertIs(inner_qs._result_cache, None)
+
+    @unittest.expectedFailure
+    def test_col_not_in_list_containing_null(self):
+        """
+        The following case is not handled properly because
+        SQL's COL NOT IN (list containing null) handling is too weird to
+        abstract away.
+        """
+        self.assertQuerysetEqual(
+            NullableName.objects.exclude(name__in=[None]),
+            ['i1'], attrgetter('name'))
+
+class EmptyStringsAsNullTest(TestCase):
+    """
+    Test that filtering on non-null character fields works as expected.
+    The reason for these tests is that Oracle treats '' as NULL, and this
+    can cause problems in query construction. Refs #17957.
+    """
+
+    def setUp(self):
+        self.nc = NamedCategory.objects.create(name='')
+
+    def test_direct_exclude(self):
+        self.assertQuerysetEqual(
+            NamedCategory.objects.exclude(name__in=['nonexisting']),
+            [self.nc.pk], attrgetter('pk')
+        )
+
+    def test_joined_exclude(self):
+        self.assertQuerysetEqual(
+            DumbCategory.objects.exclude(namedcategory__name__in=['nonexisting']),
+            [self.nc.pk], attrgetter('pk')
+        )

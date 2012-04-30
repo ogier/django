@@ -18,7 +18,7 @@ from django.utils.safestring import (SafeData, EscapeData, mark_safe,
 from django.utils.formats import localize
 from django.utils.html import escape
 from django.utils.module_loading import module_has_submodule
-from django.utils.timezone import localtime
+from django.utils.timezone import template_localtime
 
 
 TOKEN_TEXT = 0
@@ -265,7 +265,7 @@ class Parser(object):
                     self.invalid_block_tag(token, command, parse_until)
                 try:
                     compiled_result = compile_func(self, token)
-                except TemplateSyntaxError, e:
+                except TemplateSyntaxError as e:
                     if not self.compile_function_error(token, e):
                         raise
                 self.extend_nodelist(nodelist, compiled_result, token)
@@ -486,7 +486,7 @@ constant_string = constant_string.replace("\n", "")
 filter_raw_string = r"""
 ^(?P<constant>%(constant)s)|
 ^(?P<var>[%(var_chars)s]+|%(num)s)|
- (?:%(filter_sep)s
+ (?:\s*%(filter_sep)s\s*
      (?P<filter_name>\w+)
          (?:%(arg_sep)s
              (?:
@@ -592,7 +592,7 @@ class FilterExpression(object):
                 else:
                     arg_vals.append(arg.resolve(context))
             if getattr(func, 'expects_localtime', False):
-                obj = localtime(obj, context.use_tz)
+                obj = template_localtime(obj, context.use_tz)
             if getattr(func, 'needs_autoescape', False):
                 new_obj = func(obj, autoescape=context.autoescape, *arg_vals)
             else:
@@ -774,7 +774,7 @@ class Variable(object):
                             # GOTCHA: This will also catch any TypeError
                             # raised in the function itself.
                             current = settings.TEMPLATE_STRING_IF_INVALID  # invalid method call
-        except Exception, e:
+        except Exception as e:
             if getattr(e, 'silent_variable_failure', False):
                 current = settings.TEMPLATE_STRING_IF_INVALID
             else:
@@ -853,7 +853,7 @@ def _render_value_in_context(value, context):
     means escaping, if required, and conversion to a unicode object. If value
     is a string, it is expected to have already been translated.
     """
-    value = localtime(value, use_tz=context.use_tz)
+    value = template_localtime(value, use_tz=context.use_tz)
     value = localize(value, use_l10n=context.use_l10n)
     value = force_unicode(value)
     if ((context.autoescape and not isinstance(value, SafeData)) or
@@ -1237,7 +1237,7 @@ def import_library(taglib_module):
     """
     try:
         mod = import_module(taglib_module)
-    except ImportError, e:
+    except ImportError as e:
         # If the ImportError is because the taglib submodule does not exist,
         # that's not an error that should be raised. If the submodule exists
         # and raised an ImportError on the attempt to load it, that we want

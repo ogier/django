@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import base64
 import errno
 import hashlib
+import json
 import os
 import shutil
 from StringIO import StringIO
@@ -13,7 +14,7 @@ from django.core.files import temp as tempfile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http.multipartparser import MultiPartParser
 from django.test import TestCase, client
-from django.utils import simplejson, unittest
+from django.utils import unittest
 
 from . import uploadhandler
 from .models import FileModel, temp_storage, UPLOAD_TO
@@ -78,7 +79,7 @@ class FileUploadTests(TestCase):
             'wsgi.input':     client.FakePayload(payload),
         }
         response = self.client.request(**r)
-        received = simplejson.loads(response.content)
+        received = json.loads(response.content)
 
         self.assertEqual(received['file'], test_string)
 
@@ -150,7 +151,7 @@ class FileUploadTests(TestCase):
         response = self.client.request(**r)
 
         # The filenames should have been sanitized by the time it got to the view.
-        recieved = simplejson.loads(response.content)
+        recieved = json.loads(response.content)
         for i, name in enumerate(scary_file_names):
             got = recieved["file%s" % i]
             self.assertEqual(got, "hax0rd.txt")
@@ -174,7 +175,7 @@ class FileUploadTests(TestCase):
             'REQUEST_METHOD': 'POST',
             'wsgi.input':     client.FakePayload(payload),
         }
-        got = simplejson.loads(self.client.request(**r).content)
+        got = json.loads(self.client.request(**r).content)
         self.assertTrue(len(got['file']) < 256, "Got a long file name (%s characters)." % len(got['file']))
 
     def test_truncated_multipart_handled_gracefully(self):
@@ -200,7 +201,7 @@ class FileUploadTests(TestCase):
             'REQUEST_METHOD': 'POST',
             'wsgi.input': client.FakePayload(payload),
         }
-        got = simplejson.loads(self.client.request(**r).content)
+        got = json.loads(self.client.request(**r).content)
         self.assertEquals(got, {})
 
     def test_empty_multipart_handled_gracefully(self):
@@ -215,7 +216,7 @@ class FileUploadTests(TestCase):
             'REQUEST_METHOD': 'POST',
             'wsgi.input': client.FakePayload(''),
         }
-        got = simplejson.loads(self.client.request(**r).content)
+        got = json.loads(self.client.request(**r).content)
         self.assertEquals(got, {})
 
     def test_custom_upload_handler(self):
@@ -231,12 +232,12 @@ class FileUploadTests(TestCase):
 
         # Small file posting should work.
         response = self.client.post('/file_uploads/quota/', {'f': smallfile})
-        got = simplejson.loads(response.content)
+        got = json.loads(response.content)
         self.assertTrue('f' in got)
 
         # Large files don't go through.
         response = self.client.post("/file_uploads/quota/", {'f': bigfile})
-        got = simplejson.loads(response.content)
+        got = json.loads(response.content)
         self.assertTrue('f' not in got)
 
     def test_broken_custom_upload_handler(self):
@@ -274,7 +275,7 @@ class FileUploadTests(TestCase):
             'field5': u'test7',
             'file2': (file2, file2a)
         })
-        got = simplejson.loads(response.content)
+        got = json.loads(response.content)
 
         self.assertEqual(got.get('file1'), 1)
         self.assertEqual(got.get('file2'), 2)
@@ -303,7 +304,7 @@ class FileUploadTests(TestCase):
         # it raises when there is an attempt to read more than the available bytes:
         try:
             client.FakePayload('a').read(2)
-        except Exception, reference_error:
+        except Exception as reference_error:
             pass
 
         # install the custom handler that tries to access request.POST
@@ -311,12 +312,12 @@ class FileUploadTests(TestCase):
 
         try:
             response = self.client.post('/file_uploads/upload_errors/', post_data)
-        except reference_error.__class__, err:
+        except reference_error.__class__ as err:
             self.failIf(
                 str(err) == str(reference_error),
                 "Caught a repeated exception that'll cause an infinite loop in file uploads."
             )
-        except Exception, err:
+        except Exception as err:
             # CustomUploadError is the error that should have been raised
             self.assertEqual(err.__class__, uploadhandler.CustomUploadError)
 
@@ -373,9 +374,9 @@ class DirectoryCreationTests(unittest.TestCase):
         os.chmod(temp_storage.location, 0500)
         try:
             self.obj.testfile.save('foo.txt', SimpleUploadedFile('foo.txt', 'x'))
-        except OSError, err:
+        except OSError as err:
             self.assertEqual(err.errno, errno.EACCES)
-        except Exception, err:
+        except Exception:
             self.fail("OSError [Errno %s] not raised." % errno.EACCES)
 
     def test_not_a_directory(self):
@@ -385,7 +386,7 @@ class DirectoryCreationTests(unittest.TestCase):
         fd.close()
         try:
             self.obj.testfile.save('foo.txt', SimpleUploadedFile('foo.txt', 'x'))
-        except IOError, err:
+        except IOError as err:
             # The test needs to be done on a specific string as IOError
             # is raised even without the patch (just not early enough)
             self.assertEqual(err.args[0],

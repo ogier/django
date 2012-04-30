@@ -1,4 +1,5 @@
 import difflib
+import json
 import os
 import re
 import sys
@@ -33,7 +34,7 @@ from django.test.signals import template_rendered
 from django.test.utils import (get_warnings_state, restore_warnings_state,
     override_settings)
 from django.test.utils import ContextList
-from django.utils import simplejson, unittest as ut2
+from django.utils import unittest as ut2
 from django.utils.encoding import smart_str, force_unicode
 from django.utils.unittest.util import safe_repr
 from django.views.static import serve
@@ -83,7 +84,7 @@ def restore_transaction_methods():
 def assert_and_parse_html(self, html, user_msg, msg):
     try:
         dom = parse_html(html)
-    except HTMLParseError, e:
+    except HTMLParseError as e:
         standardMsg = u'%s\n%s' % (msg, e.msg)
         self.fail(self._formatMessage(user_msg, standardMsg))
     return dom
@@ -189,8 +190,8 @@ class OutputChecker(doctest.OutputChecker):
         """
         want, got = self._strip_quotes(want, got)
         try:
-            want_json = simplejson.loads(want)
-            got_json = simplejson.loads(got)
+            want_json = json.loads(want)
+            got_json = json.loads(got)
         except Exception:
             return False
         return want_json == got_json
@@ -1034,7 +1035,7 @@ class LiveServerThread(threading.Thread):
                 try:
                     self.httpd = StoppableWSGIServer(
                         (self.host, port), QuietWSGIRequestHandler)
-                except WSGIServerException, e:
+                except WSGIServerException as e:
                     if (index + 1 < len(self.possible_ports) and
                         e.args[0].errno == errno.EADDRINUSE):
                         # This port is already in use, so we go on and try with
@@ -1053,7 +1054,7 @@ class LiveServerThread(threading.Thread):
             self.httpd.set_app(handler)
             self.is_ready.set()
             self.httpd.serve_forever()
-        except Exception, e:
+        except Exception as e:
             self.error = e
             self.is_ready.set()
 

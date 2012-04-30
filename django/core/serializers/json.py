@@ -2,14 +2,17 @@
 Serialize data to/from JSON
 """
 
+# Avoid shadowing the standard library json module
+from __future__ import absolute_import
+
 import datetime
 import decimal
+import json
 from StringIO import StringIO
 
 from django.core.serializers.base import DeserializationError
 from django.core.serializers.python import Serializer as PythonSerializer
 from django.core.serializers.python import Deserializer as PythonDeserializer
-from django.utils import simplejson
 from django.utils.timezone import is_aware
 
 class Serializer(PythonSerializer):
@@ -19,10 +22,10 @@ class Serializer(PythonSerializer):
     internal_use_only = False
 
     def end_serialization(self):
-        if simplejson.__version__.split('.') >= ['2', '1', '3']:
+        if json.__version__.split('.') >= ['2', '1', '3']:
             # Use JS strings to represent Python Decimal instances (ticket #16850)
             self.options.update({'use_decimal': False})
-        simplejson.dump(self.objects, self.stream, cls=DjangoJSONEncoder, **self.options)
+        json.dump(self.objects, self.stream, cls=DjangoJSONEncoder, **self.options)
 
     def getvalue(self):
         if callable(getattr(self.stream, 'getvalue', None)):
@@ -38,16 +41,16 @@ def Deserializer(stream_or_string, **options):
     else:
         stream = stream_or_string
     try:
-        for obj in PythonDeserializer(simplejson.load(stream), **options):
+        for obj in PythonDeserializer(json.load(stream), **options):
             yield obj
     except GeneratorExit:
         raise
-    except Exception, e:
+    except Exception as e:
         # Map to deserializer error
         raise DeserializationError(e)
 
 
-class DjangoJSONEncoder(simplejson.JSONEncoder):
+class DjangoJSONEncoder(json.JSONEncoder):
     """
     JSONEncoder subclass that knows how to encode date/time and decimal types.
     """

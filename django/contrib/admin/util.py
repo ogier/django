@@ -1,3 +1,6 @@
+import datetime
+import decimal
+
 from django.db import models
 from django.db.models.sql.constants import LOOKUP_SEP
 from django.db.models.deletion import Collector
@@ -153,7 +156,7 @@ class NestedObjects(Collector):
                 self.add_edge(None, obj)
         try:
             return super(NestedObjects, self).collect(objs, source_attr=source_attr, **kwargs)
-        except models.ProtectedError, e:
+        except models.ProtectedError as e:
             self.protected.update(e.protected_objects)
 
     def related_objects(self, related, objs):
@@ -322,12 +325,30 @@ def display_for_field(value, field):
     elif value is None:
         return EMPTY_CHANGELIST_VALUE
     elif isinstance(field, models.DateTimeField):
-        return formats.localize(timezone.localtime(value))
-    elif isinstance(field, models.DateField) or isinstance(field, models.TimeField):
+        return formats.localize(timezone.template_localtime(value))
+    elif isinstance(field, (models.DateField, models.TimeField)):
         return formats.localize(value)
     elif isinstance(field, models.DecimalField):
         return formats.number_format(value, field.decimal_places)
     elif isinstance(field, models.FloatField):
+        return formats.number_format(value)
+    else:
+        return smart_unicode(value)
+
+
+def display_for_value(value, boolean=False):
+    from django.contrib.admin.templatetags.admin_list import _boolean_icon
+    from django.contrib.admin.views.main import EMPTY_CHANGELIST_VALUE
+
+    if boolean:
+        return _boolean_icon(value)
+    elif value is None:
+        return EMPTY_CHANGELIST_VALUE
+    elif isinstance(value, datetime.datetime):
+        return formats.localize(timezone.template_localtime(value))
+    elif isinstance(value, (datetime.date, datetime.time)):
+        return formats.localize(value)
+    elif isinstance(value, (decimal.Decimal, float, int, long)):
         return formats.number_format(value)
     else:
         return smart_unicode(value)
