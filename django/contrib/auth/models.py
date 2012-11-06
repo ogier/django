@@ -290,22 +290,12 @@ class AbstractBaseUser(models.Model):
         raise NotImplementedError()
 
 
-class AbstractUser(AbstractBaseUser):
+class PermissionsMixin(models.Model):
     """
-    An abstract base class implementing a fully featured User model with
-    admin-compliant permissions.
-
-    Username, password and email are required. Other fields are optional.
+    A simple form of authorization. Users can be granted permissions on a
+    per-app basis, or added to groups to grant permissions in a more manageable
+    way.
     """
-    username = models.CharField(_('username'), max_length=30, unique=True,
-        help_text=_('Required. 30 characters or fewer. Letters, numbers and '
-                    '@/./+/-/_ characters'),
-        validators=[
-            validators.RegexValidator(re.compile('^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
-        ])
-    first_name = models.CharField(_('first name'), max_length=30, blank=True)
-    last_name = models.CharField(_('last name'), max_length=30, blank=True)
-    email = models.EmailField(_('email address'), blank=True)
     is_staff = models.BooleanField(_('staff status'), default=False,
         help_text=_('Designates whether the user can log into this admin '
                     'site.'))
@@ -315,7 +305,6 @@ class AbstractUser(AbstractBaseUser):
     is_superuser = models.BooleanField(_('superuser status'), default=False,
         help_text=_('Designates that this user has all permissions without '
                     'explicitly assigning them.'))
-    date_joined = models.DateTimeField(_('date joined'), default=timezone.now)
     groups = models.ManyToManyField(Group, verbose_name=_('groups'),
         blank=True, help_text=_('The groups this user belongs to. A user will '
                                 'get all permissions granted to each of '
@@ -324,29 +313,8 @@ class AbstractUser(AbstractBaseUser):
         verbose_name=_('user permissions'), blank=True,
         help_text='Specific permissions for this user.')
 
-    objects = UserManager()
-
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email']
-
     class Meta:
-        verbose_name = _('user')
-        verbose_name_plural = _('users')
         abstract = True
-
-    def get_absolute_url(self):
-        return "/users/%s/" % urlquote(self.username)
-
-    def get_full_name(self):
-        """
-        Returns the first_name plus the last_name, with a space in between.
-        """
-        full_name = '%s %s' % (self.first_name, self.last_name)
-        return full_name.strip()
-
-    def get_short_name(self):
-        "Returns the short name for the user."
-        return self.first_name
 
     def get_group_permissions(self, obj=None):
         """
@@ -404,6 +372,49 @@ class AbstractUser(AbstractBaseUser):
             return True
 
         return _user_has_module_perms(self, app_label)
+
+
+class AbstractUser(AbstractBaseUser, PermissionsMixin):
+    """
+    An abstract base class implementing a fully featured User model with
+    admin-compliant permissions.
+
+    Username, password and email are required. Other fields are optional.
+    """
+    username = models.CharField(_('username'), max_length=30, unique=True,
+        help_text=_('Required. 30 characters or fewer. Letters, numbers and '
+                    '@/./+/-/_ characters'),
+        validators=[
+            validators.RegexValidator(re.compile('^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
+        ])
+    first_name = models.CharField(_('first name'), max_length=30, blank=True)
+    last_name = models.CharField(_('last name'), max_length=30, blank=True)
+    email = models.EmailField(_('email address'), blank=True)
+    date_joined = models.DateTimeField(_('date joined'), default=timezone.now)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
+
+    class Meta:
+        verbose_name = _('user')
+        verbose_name_plural = _('users')
+        abstract = True
+
+    def get_absolute_url(self):
+        return "/users/%s/" % urlquote(self.username)
+
+    def get_full_name(self):
+        """
+        Returns the first_name plus the last_name, with a space in between.
+        """
+        full_name = '%s %s' % (self.first_name, self.last_name)
+        return full_name.strip()
+
+    def get_short_name(self):
+        "Returns the short name for the user."
+        return self.first_name
 
     def email_user(self, subject, message, from_email=None):
         """
